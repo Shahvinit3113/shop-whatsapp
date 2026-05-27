@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  SUPER_ADMIN
+  SHOP_ADMIN
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+// ============================================
+// MODELS — NO FOREIGN KEY CONSTRAINTS
+// All relations handled at application level
+// ============================================
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(SHOP_ADMIN)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Shop {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String
+  phone                String
+  address              String?
+  isActive             Boolean  @default(true) @map("is_active")
+  whatsappPhoneNumberId String?  @map("whatsapp_phone_number_id")
+  whatsappAccessToken   String?  @map("whatsapp_access_token")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("shops")
+}
+
+model ConversationState {
+  id         String   @id @default(uuid()) @db.Uuid
+  shopId     String   @map("shop_id") @db.Uuid
+  phone      String
+  step       String   // e.g., 'INITIAL', 'AWAITING_FLAVOR', 'AWAITING_TIME', 'AWAITING_MESSAGE', 'AWAITING_CONFIRMATION'
+  orderData  Json?    @map("order_data")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([shopId, phone])
+  @@map("conversation_states")
+}
+
+model UserShop {
+// ... existing UserShop model
+
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  shopId String @map("shop_id") @db.Uuid
+
+  @@unique([userId, shopId])
+  @@index([userId])
+  @@index([shopId])
+  @@map("user_shops")
+}
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @map("shop_id") @db.Uuid
+  name      String
+  phone     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([shopId])
+  @@index([phone])
+  @@map("customers")
+}
+
+model Cake {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  name        String
+  price       Float
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([shopId])
+  @@map("cakes")
+}
+
+model Order {
+  id            String        @id @default(uuid()) @db.Uuid
+  shopId        String        @map("shop_id") @db.Uuid
+  customerId    String        @map("customer_id") @db.Uuid
+  orderNumber   String        @unique @map("order_number")
+  totalAmount   Float         @default(0) @map("total_amount")
+  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  status        OrderStatus   @default(NEW)
+  orderDate     DateTime      @default(now()) @map("order_date")
+  pickupTime    DateTime?     @map("pickup_time")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@index([shopId])
+  @@index([customerId])
+  @@index([orderDate])
+  @@index([status])
+  @@index([shopId, orderDate])
+  @@index([shopId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @map("shop_id") @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  cakeId    String   @map("cake_id") @db.Uuid
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([shopId])
+  @@map("order_items")
+}
+
+model Payment {
+  id            String        @id @default(uuid()) @db.Uuid
+  shopId        String        @map("shop_id") @db.Uuid
+  orderId       String        @map("order_id") @db.Uuid
+  amount        Float
+  method        PaymentMethod @default(CASH)
+  status        PaymentStatus @default(PENDING)
+  transactionId String?       @map("transaction_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([shopId])
+  @@map("payments")
+}
+
+model Subscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @map("shop_id") @db.Uuid
+  planType  PlanType @default(FREE) @map("plan_type")
+  startDate DateTime @default(now()) @map("start_date")
+  endDate   DateTime? @map("end_date")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  @@index([shopId])
+  @@map("subscriptions")
+}
+
+model WhatsAppMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String?  @map("shop_id") @db.Uuid
+  from      String
+  to        String
+  body      String
+  messageId String?  @map("message_id")
+  timestamp DateTime @default(now())
+
+  @@index([shopId])
+  @@index([from])
+  @@map("whatsapp_messages")
+}
