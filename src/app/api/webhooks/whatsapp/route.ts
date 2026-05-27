@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { serverErrorResponse, successResponse, errorResponse } from '@/lib/errors';
+import { serverErrorResponse } from '@/lib/errors';
 import { sendWhatsAppMessage, sendWhatsAppButtons } from '@/lib/whatsapp';
 
 // GET /api/webhooks/whatsapp — Webhook verification (challenge response)
@@ -14,16 +14,20 @@ export async function GET(request: NextRequest) {
     const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'cakeshop-webhook-verify';
 
     if (mode === 'subscribe' && token === verifyToken) {
-        return new Response(challenge, { status: 200 });
+        return new NextResponse(challenge, {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' },
+        });
     }
 
-    return errorResponse('Forbidden', 403);
+    return new NextResponse('Forbidden', { status: 403 });
 }
 
 // POST /api/webhooks/whatsapp — Receive incoming messages
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
+        console.log('Incoming WhatsApp Webhook Payload:', JSON.stringify(body, null, 2));
 
         // WhatsApp Cloud API message structure
         const entry = body.entry?.[0];
@@ -31,7 +35,7 @@ export async function POST(request: NextRequest) {
         const value = changes?.value;
 
         if (!value?.messages) {
-            return successResponse({ status: 'acknowledged' });
+            return new NextResponse('EVENT_RECEIVED', { status: 200 });
         }
 
         const phoneNumberId = value.metadata?.phone_number_id;
@@ -266,7 +270,7 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        return successResponse({ status: 'processed' });
+        return new NextResponse('EVENT_RECEIVED', { status: 200 });
     } catch (error) {
         console.error('Webhook Error:', error);
         return serverErrorResponse(error);
