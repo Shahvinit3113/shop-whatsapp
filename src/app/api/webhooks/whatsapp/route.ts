@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { serverErrorResponse } from '@/lib/errors';
 import { sendWhatsAppMessage, sendWhatsAppButtons } from '@/lib/whatsapp';
+import { detectCakeIntent } from '@/utils/detectCakeIntent';
 
 // GET /api/webhooks/whatsapp — Webhook verification (challenge response)
 export async function GET(request: NextRequest) {
@@ -102,7 +103,25 @@ export async function POST(request: NextRequest) {
 
             switch (state.step) {
                 case 'INITIAL':
-                    // Just started or reset. Fetch available cakes.
+                    const hasCakeIntent = detectCakeIntent(messageBody);
+                    
+                    console.log('--- Incoming Request ---');
+                    console.log(`Message: "${messageBody}"`);
+                    console.log(`Detected Intent: ${hasCakeIntent ? 'Cake Related' : 'Generic'}`);
+
+                    if (!hasCakeIntent) {
+                        console.log(`Response Type Sent: Generic Greeting`);
+                        await sendWhatsAppMessage(
+                            shop.whatsappAccessToken,
+                            shop.whatsappPhoneNumberId!,
+                            from,
+                            `Welcome to ${shop.name} 🎂\nPlease tell us what type of cake you are looking for.`
+                        );
+                        break;
+                    }
+
+                    console.log(`Response Type Sent: Cake Menu`);
+                    // Fetch available cakes.
                     const cakes = await prisma.cake.findMany({
                         where: { shopId: shop.id, isActive: true },
                         take: 3
@@ -113,12 +132,17 @@ export async function POST(request: NextRequest) {
                         break;
                     }
 
-                    await sendWhatsAppButtons(
+                    let menuText = `🍰 Cake Menu\n\n`;
+                    cakes.forEach((cake, index) => {
+                        menuText += `${index + 1}. ${cake.name} - ₹${cake.price}/kg\n`;
+                    });
+                    menuText += `\nReply with number to continue.`;
+
+                    await sendWhatsAppMessage(
                         shop.whatsappAccessToken,
                         shop.whatsappPhoneNumberId!,
                         from,
-                        `Welcome to ${shop.name}! 🎂\nWhat would you like to order today?`,
-                        cakes.map(c => ({ id: c.id, title: c.name }))
+                        menuText
                     );
 
                     await prisma.conversationState.update({
@@ -129,15 +153,29 @@ export async function POST(request: NextRequest) {
 
                 case 'AWAITING_FLAVOR':
                     // Customer selected/typed a cake
-                    const selectedCake = await prisma.cake.findFirst({
-                        where: {
-                            shopId: shop.id,
-                            OR: [
-                                { name: { equals: messageBody, mode: 'insensitive' } },
-                                { id: message.interactive?.button_reply?.id }
-                            ]
-                        }
-                    });
+                    const selectedIndex = parseInt(messageBody.trim(), 10);
+                    let selectedCake = null;
+
+                    if (!isNaN(selectedIndex) && selectedIndex > 0) {
+                        // Re-fetch the cakes to get the selected one by number
+                        const cakesList = await prisma.cake.findMany({
+                            where: { shopId: shop.id, isActive: true },
+                            take: 3
+                        });
+                        selectedCake = cakesList[selectedIndex - 1];
+                    }
+
+                    if (!selectedCake) {
+                        selectedCake = await prisma.cake.findFirst({
+                            where: {
+                                shopId: shop.id,
+                                OR: [
+                                    { name: { equals: messageBody, mode: 'insensitive' } },
+                                    { id: message.interactive?.button_reply?.id }
+                                ]
+                            }
+                        });
+                    }
 
                     if (!selectedCake) {
                         await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "I couldn't find that cake. Please select from the options provided.");
