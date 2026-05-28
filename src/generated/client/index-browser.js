@@ -232,6 +232,15 @@ exports.Prisma.WhatsAppMessageScalarFieldEnum = {
   timestamp: 'timestamp'
 };
 
+exports.Prisma.ErrorLogScalarFieldEnum = {
+  id: 'id',
+  shopId: 'shopId',
+  errorType: 'errorType',
+  message: 'message',
+  stack: 'stack',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -303,7 +312,8 @@ exports.Prisma.ModelName = {
   OrderItem: 'OrderItem',
   Payment: 'Payment',
   Subscription: 'Subscription',
-  WhatsAppMessage: 'WhatsAppMessage'
+  WhatsAppMessage: 'WhatsAppMessage',
+  ErrorLog: 'ErrorLog'
 };
 
 /**

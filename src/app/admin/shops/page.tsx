@@ -11,6 +11,8 @@ interface Shop {
     address: string;
     isActive: boolean;
     createdAt: string;
+    whatsappPhoneNumberId?: string;
+    whatsappAccessToken?: string;
 }
 
 export default function AdminShopsPage() {
@@ -19,7 +21,13 @@ export default function AdminShopsPage() {
     const [shops, setShops] = useState<Shop[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ name: '', phone: '', address: '' });
+    const [editShopId, setEditShopId] = useState<string | null>(null);
+    const [form, setForm] = useState({ name: '', phone: '', address: '', whatsappPhoneNumberId: '', whatsappAccessToken: '' });
+    
+    const [showAdminModal, setShowAdminModal] = useState(false);
+    const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
+    const [adminShopId, setAdminShopId] = useState<string | null>(null);
+
     const [saving, setSaving] = useState(false);
 
     const fetchShops = async () => {
@@ -41,18 +49,71 @@ export default function AdminShopsPage() {
             .catch(() => router.push('/login'));
     }, [router]);
 
-    const handleCreate = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
-        await fetch('/api/shops', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form),
-        });
+        if (editShopId) {
+            await fetch(`/api/shops/${editShopId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+            });
+        } else {
+            await fetch('/api/shops', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+            });
+        }
         setShowModal(false);
-        setForm({ name: '', phone: '', address: '' });
+        setEditShopId(null);
+        setForm({ name: '', phone: '', address: '', whatsappPhoneNumberId: '', whatsappAccessToken: '' });
         setSaving(false);
         fetchShops();
+    };
+
+    const openAddModal = () => {
+        setEditShopId(null);
+        setForm({ name: '', phone: '', address: '', whatsappPhoneNumberId: '', whatsappAccessToken: '' });
+        setShowModal(true);
+    };
+
+    const openEditModal = (shop: Shop) => {
+        setEditShopId(shop.id);
+        setForm({ 
+            name: shop.name, 
+            phone: shop.phone, 
+            address: shop.address || '', 
+            whatsappPhoneNumberId: shop.whatsappPhoneNumberId || '', 
+            whatsappAccessToken: shop.whatsappAccessToken || '' 
+        });
+        setShowModal(true);
+    };
+
+    const handleCreateAdmin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaving(true);
+        const res = await fetch(`/api/shops/${adminShopId}/admin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(adminForm),
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Admin created successfully!');
+            setShowAdminModal(false);
+            setAdminShopId(null);
+            setAdminForm({ name: '', email: '', password: '' });
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+        setSaving(false);
+    };
+
+    const openCreateAdminModal = (shop: Shop) => {
+        setAdminShopId(shop.id);
+        setAdminForm({ name: '', email: '', password: '' });
+        setShowAdminModal(true);
     };
 
     const toggleShop = async (shop: Shop) => {
@@ -80,7 +141,7 @@ export default function AdminShopsPage() {
                         <h1 style={{ fontSize: 24, fontWeight: 800 }}>🏪 <span style={{ color: 'var(--accent)' }}>All Shops</span></h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{shops.length} registered shops</p>
                     </div>
-                    <button onClick={() => setShowModal(true)} className="btn-primary">+ Add Shop</button>
+                    <button onClick={openAddModal} className="btn-primary">+ Add Shop</button>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
@@ -106,8 +167,14 @@ export default function AdminShopsPage() {
                                 {shop.address && <div>📍 {shop.address}</div>}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => openEditModal(shop)} className="btn-secondary" style={{ flex: 1, padding: '8px 16px', fontSize: 13 }}>
+                                    Edit
+                                </button>
                                 <button onClick={() => toggleShop(shop)} className={shop.isActive ? 'btn-danger' : 'btn-primary'} style={{ flex: 1, padding: '8px 16px', fontSize: 13 }}>
                                     {shop.isActive ? 'Disable' : 'Enable'}
+                                </button>
+                                <button onClick={() => openCreateAdminModal(shop)} className="btn-secondary" style={{ flex: 1, padding: '8px 16px', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                                    + Admin
                                 </button>
                             </div>
                         </div>
@@ -118,8 +185,8 @@ export default function AdminShopsPage() {
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Add New Shop</h2>
-                        <form onSubmit={handleCreate}>
+                        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>{editShopId ? 'Edit Shop' : 'Add New Shop'}</h2>
+                        <form onSubmit={handleSave}>
                             <div style={{ marginBottom: 16 }}>
                                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Shop Name</label>
                                 <input className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Sweet Delights Bakery" />
@@ -128,6 +195,14 @@ export default function AdminShopsPage() {
                                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Phone</label>
                                 <input className="input-field" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required placeholder="9876543210" />
                             </div>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>WhatsApp Phone Number ID</label>
+                                <input className="input-field" value={form.whatsappPhoneNumberId} onChange={(e) => setForm({ ...form, whatsappPhoneNumberId: e.target.value })} placeholder="e.g. 123456789012345" />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>WhatsApp Access Token</label>
+                                <input className="input-field" type="password" value={form.whatsappAccessToken} onChange={(e) => setForm({ ...form, whatsappAccessToken: e.target.value })} placeholder="EAA..." />
+                            </div>
                             <div style={{ marginBottom: 24 }}>
                                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Address</label>
                                 <textarea className="input-field" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Shop address" rows={2} style={{ resize: 'vertical' }} />
@@ -135,7 +210,35 @@ export default function AdminShopsPage() {
                             <div style={{ display: 'flex', gap: 12 }}>
                                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
                                 <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={saving}>
-                                    {saving ? 'Creating...' : 'Create Shop'}
+                                    {saving ? 'Saving...' : (editShopId ? 'Save Changes' : 'Create Shop')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showAdminModal && (
+                <div className="modal-overlay" onClick={() => setShowAdminModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Create Shop Admin</h2>
+                        <form onSubmit={handleCreateAdmin}>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Admin Name</label>
+                                <input className="input-field" value={adminForm.name} onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })} required placeholder="John Doe" />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Email</label>
+                                <input className="input-field" type="email" value={adminForm.email} onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })} required placeholder="admin@shop.com" />
+                            </div>
+                            <div style={{ marginBottom: 24 }}>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Password</label>
+                                <input className="input-field" type="password" value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} required minLength={6} placeholder="******" />
+                            </div>
+                            <div style={{ display: 'flex', gap: 12 }}>
+                                <button type="button" onClick={() => setShowAdminModal(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={saving}>
+                                    {saving ? 'Creating...' : 'Create Admin'}
                                 </button>
                             </div>
                         </form>

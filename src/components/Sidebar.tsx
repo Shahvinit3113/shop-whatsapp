@@ -32,6 +32,8 @@ export default function Sidebar({ userName, shopName, role }: SidebarProps) {
         { label: 'Orders', href: '/shop/orders', icon: '📋' },
         { label: 'Cakes', href: '/shop/cakes', icon: '🎂' },
         { label: 'Customers', href: '/shop/customers', icon: '👥' },
+        { label: 'Messages', href: '/shop/messages', icon: '💬' },
+        { label: 'Error Logs', href: '/shop/error-logs', icon: '⚠️' },
     ];
 
     const navItems = role === 'SUPER_ADMIN' ? adminNavItems : shopNavItems;

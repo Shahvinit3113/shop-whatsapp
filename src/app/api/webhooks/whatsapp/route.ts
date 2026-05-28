@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
                             shop.whatsappAccessToken,
                             shop.whatsappPhoneNumberId!,
                             from,
-                            `Welcome to ${shop.name} 🎂\nPlease tell us what type of cake you are looking for.`
+                            `Welcome to ${shop.name} 🎂\nPlease tell us what type of cake you are looking for.`,
+                            shop.id
                         );
                         break;
                     }
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
                     });
 
                     if (cakes.length === 0) {
-                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, `Welcome to ${shop.name}! Currently, we don't have any cakes listed. Please check back later.`);
+                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, `Welcome to ${shop.name}! Currently, we don't have any cakes listed. Please check back later.`, shop.id);
                         break;
                     }
 
@@ -142,7 +143,8 @@ export async function POST(request: NextRequest) {
                         shop.whatsappAccessToken,
                         shop.whatsappPhoneNumberId!,
                         from,
-                        menuText
+                        menuText,
+                        shop.id
                     );
 
                     await prisma.conversationState.update({
@@ -178,7 +180,7 @@ export async function POST(request: NextRequest) {
                     }
 
                     if (!selectedCake) {
-                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "I couldn't find that cake. Please select from the options provided.");
+                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "I couldn't find that cake. Please select from the options provided.", shop.id);
                         break;
                     }
 
@@ -186,7 +188,7 @@ export async function POST(request: NextRequest) {
                     orderData.cakeName = selectedCake.name;
                     orderData.price = selectedCake.price;
 
-                    await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, `Great choice! ${selectedCake.name} it is.\n\nWhen would you like to pick it up? (e.g., Tomorrow at 5pm)`);
+                    await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, `Great choice! ${selectedCake.name} it is.\n\nWhen would you like to pick it up? (e.g., Tomorrow at 5pm)`, shop.id);
 
                     await prisma.conversationState.update({
                         where: { id: state.id },
@@ -200,7 +202,7 @@ export async function POST(request: NextRequest) {
                 case 'AWAITING_TIME':
                     orderData.pickupTime = messageBody;
 
-                    await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "Got it! Any special message or instructions for the cake? (Type 'None' if none)");
+                    await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "Got it! Any special message or instructions for the cake? (Type 'None' if none)", shop.id);
 
                     await prisma.conversationState.update({
                         where: { id: state.id },
@@ -229,7 +231,8 @@ export async function POST(request: NextRequest) {
                         [
                             { id: 'CONFIRM_YES', title: 'Confirm ✅' },
                             { id: 'CONFIRM_NO', title: 'Cancel ❌' }
-                        ]
+                        ],
+                        shop.id
                     );
 
                     await prisma.conversationState.update({
@@ -274,14 +277,15 @@ export async function POST(request: NextRequest) {
                             shop.whatsappAccessToken,
                             shop.whatsappPhoneNumberId!,
                             from,
-                            `✅ *Order Confirmed!*\n\nYour order number is *${orderNumber}*.\nWe'll notify you when it's ready.\n\nYou can pay ₹${orderData.price! / 2} (50% advance) to confirm via UPI: shop@upi`
+                            `✅ *Order Confirmed!*\n\nYour order number is *${orderNumber}*.\nWe'll notify you when it's ready.\n\nYou can pay ₹${orderData.price! / 2} (50% advance) to confirm via UPI: shop@upi`,
+                            shop.id
                         );
 
                         await prisma.conversationState.delete({
                             where: { id: state.id }
                         });
                     } else {
-                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "Order cancelled. You can start a new order anytime by saying Hi!");
+                        await sendWhatsAppMessage(shop.whatsappAccessToken, shop.whatsappPhoneNumberId!, from, "Order cancelled. You can start a new order anytime by saying Hi!", shop.id);
                         await prisma.conversationState.delete({
                             where: { id: state.id }
                         });
@@ -311,6 +315,13 @@ export async function POST(request: NextRequest) {
         return new NextResponse('EVENT_RECEIVED', { status: 200 });
     } catch (error) {
         console.error('Webhook Error:', error);
+        await prisma.errorLog.create({
+            data: {
+                errorType: 'WEBHOOK_ERROR',
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+            }
+        }).catch(e => console.error('Failed to log webhook error:', e));
         return serverErrorResponse(error);
     }
 }

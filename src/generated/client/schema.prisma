@@ -206,3 +206,15 @@ model WhatsAppMessage {
   @@index([from])
   @@map("whatsapp_messages")
 }
+
+model ErrorLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String?  @map("shop_id") @db.Uuid
+  errorType String   @map("error_type")
+  message   String
+  stack     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([shopId])
+  @@map("error_logs")
+}
